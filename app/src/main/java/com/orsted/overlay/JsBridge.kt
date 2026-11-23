@@ -62,14 +62,14 @@ class JsBridge(private val context: Context, private val onUpdateRequired: () ->
             when (statusCode) {
                 426 -> {
                     onUpdateRequired()
-                    "{"status":426}"
+                    "{\"status\":426}"
                 }
                 else -> {
-                    "{"status":$statusCode,"body":"$body"}"
+                    "{\"status\":$statusCode,\"body\":\"$body\"}"
                 }
             }
         } catch (e: Exception) {
-            "{"status":0,"error":"${e.message}"}"
+            "{\"status\":0,\"error\":\"${e.message}\"}"
         }
     }
     
