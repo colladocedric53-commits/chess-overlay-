@@ -88,6 +88,11 @@ class JsBridge(private val context: Context, private val onUpdateRequired: () ->
         sharedPrefs.edit().putString("license_key", key).apply()
     }
     
+    @JavascriptInterface
+    fun triggerUpdate() {
+        onUpdateRequired()
+    }
+    
     fun validateLicense(key: String, version: String, callback: (Boolean, String?) -> Unit) {
         val url = "https://chess-engine-2-66am.onrender.com/api/validate?key=$key&hwid=${currentHwid}&ver=$version"
         

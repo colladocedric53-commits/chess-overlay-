@@ -95,7 +95,60 @@ class MainActivity : AppCompatActivity() {
                 OrstedBridge.GM_setValue(key, value);
             };
             window.GM_xmlhttpRequest = function(details) {
-                return JSON.parse(OrstedBridge.GM_xmlhttpRequest(details));
+                if (typeof details === 'string') {
+                    details = { url: details };
+                }
+                const xhr = new XMLHttpRequest();
+                const method = details.method || 'GET';
+                const url = details.url;
+                const async = details.async !== false;
+                const user = details.user;
+                const password = details.password;
+                const headers = details.headers || {};
+                const data = details.data || null;
+                const timeout = details.timeout || 0;
+                
+                xhr.open(method, url, async, user, password);
+                
+                for (const headerName in headers) {
+                    xhr.setRequestHeader(headerName, headers[headerName]);
+                }
+                
+                if (timeout > 0) {
+                    xhr.timeout = timeout;
+                    xhr.ontimeout = function() {
+                        if (details.ontimeout) details.ontimeout({});
+                    };
+                }
+                
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        const response = {
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            responseText: xhr.responseText,
+                            response: xhr.responseText,
+                            readyState: xhr.readyState,
+                            responseHeaders: xhr.getAllResponseHeaders()
+                        };
+                        
+                        if (xhr.status === 426 && url.includes('/api/validate')) {
+                            OrstedBridge.triggerUpdate();
+                        }
+                        
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            if (details.onload) details.onload(response);
+                        } else {
+                            if (details.onerror) details.onerror(response);
+                        }
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    if (details.onerror) details.onerror({ status: 0, statusText: 'Network Error' });
+                };
+                
+                xhr.send(data);
             };
             window.OrstedHWID = "$hwid";
             window.OrstedLicenseKey = "$licenseKey";
