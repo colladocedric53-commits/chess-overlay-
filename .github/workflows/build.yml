@@ -10,34 +10,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - name: Set up JDK
       uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
-        
+
     - name: Make gradlew executable
       run: chmod +x ./gradlew
-      
+
     - name: Download chess.min.js
       run: |
         mkdir -p app/src/main/assets
-        curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js || echo "chess.min.js already exists"
-        
+        curl --fail --location --retry 3 -o app/src/main/assets/chess.min.js https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js
+
     - name: Download stockfish.js
       run: |
-        curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js || echo "stockfish.js already exists"
-        
+        curl --fail --location --retry 3 -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js
+
     - name: Build
       run: ./gradlew assembleDebug --stacktrace
-      
+
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
-      if: always()
       with:
         name: orsted-apk
-        path: app/build/outputs/apk/debug/
+        path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
