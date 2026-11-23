@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="orsted_primary">#2ecc71</color>
+    <color name="orsted_background">#112b1d</color>
+    <color name="orsted_background_alt">#1c1c1e</color>
+    <color name="orsted_card">#1e3a32</color>
+    <color name="orsted_text">#ffffff</color>
+    <color name="orsted_text_secondary">#a0a0a0</color>
+</resources>

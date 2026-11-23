@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="OrstedTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/orsted_primary</item>
+        <item name="colorPrimaryContainer">@color/orsted_primary</item>
+        <item name="colorOnPrimary">@color/orsted_background</item>
+        <item name="android:windowBackground">@color/orsted_background</item>
+        <item name="android:colorBackground">@color/orsted_background</item>
+        <item name="android:textColor">@color/orsted_text</item>
+        <item name="android:statusBarColor">@color/orsted_background</item>
+        <item name="android:navigationBarColor">@color/orsted_background</item>
+    </style>
+    
+    <style name="OrstedCard" parent="Widget.Material3.CardView">
+        <item name="cardBackgroundColor">@color/orsted_card</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">8dp</item>
+    </style>
+    
+    <style name="OrstedText" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">@color/orsted_text</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    
+    <style name="OrstedTextSecondary" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/orsted_text_secondary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+</resources>

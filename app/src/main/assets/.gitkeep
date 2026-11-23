@@ -1,0 +1,2 @@
+# Place userscript.js, chess.min.js, and stockfish.js here
+# chess.min.js and stockfish.js will be auto-downloaded by GitHub Actions

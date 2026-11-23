@@ -1,0 +1,42 @@
+name: Build Orsted APK
+
+on:
+  push:
+    branches: [ main, build ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'gradle'
+    
+    - name: Download chess.min.js
+      run: |
+        mkdir -p app/src/main/assets
+        curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js
+    
+    - name: Download stockfish.js
+      run: |
+        curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js
+    
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug
+    
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: orsted-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
