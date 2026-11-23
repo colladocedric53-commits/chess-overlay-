@@ -12,8 +12,8 @@ object HwidProvider {
         val deviceInfo = "${Build.MODEL}|${Build.MANUFACTURER}|${Build.PRODUCT}|${Build.SERIAL}|$androidId"
         
         val bytes = deviceInfo.toByteArray(StandardCharsets.UTF_8)
-        var hash = 14695981039346656037L
-        val prime = 1099511628211L
+        var hash: Long = 14695981039346656037L
+        val prime: Long = 1099511628211L
         
         for (byte in bytes) {
             val b = byte.toInt() and 0xFF
