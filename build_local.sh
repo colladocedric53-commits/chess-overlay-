@@ -36,9 +36,9 @@ mkdir -p app/src/main/assets
 echo ""
 echo "Downloading chess.min.js..."
 if command -v curl &> /dev/null; then
-    curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js
+    curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js
 elif command -v wget &> /dev/null; then
-    wget -O app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js
+    wget -O app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js
 else
     echo "ERROR: Neither curl nor wget found. Please install one of them."
     exit 1
@@ -47,9 +47,9 @@ fi
 # Download stockfish.js
 echo "Downloading stockfish.js..."
 if command -v curl &> /dev/null; then
-    curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js
+    curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js
 else
-    wget -O app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js
+    wget -O app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js
 fi
 
 # Check if userscript.js exists

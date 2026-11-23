@@ -26,11 +26,11 @@ jobs:
     - name: Download chess.min.js
       run: |
         mkdir -p app/src/main/assets
-        curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js || echo "chess.min.js already exists"
+        curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js || echo "chess.min.js already exists"
         
     - name: Download stockfish.js
       run: |
-        curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js || echo "stockfish.js already exists"
+        curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js || echo "stockfish.js already exists"
         
     - name: Build
       run: ./gradlew assembleDebug --stacktrace
