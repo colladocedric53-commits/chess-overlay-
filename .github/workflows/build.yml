@@ -5,38 +5,37 @@ on:
     branches: [ main, build ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Set up JDK 17
+    - name: Set up JDK
       uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
-    
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    
-    - name: Download chess.min.js
+        
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+      
+    - name: Download dependencies
       run: |
         mkdir -p app/src/main/assets
-        curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js
-    
-    - name: Download stockfish.js
-      run: |
-        curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js
-    
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug
-    
-    - name: Upload APK artifact
+        wget -O app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.13.0/dist/chess.min.js || true
+        wget -O app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@11.0.2/dist/stockfish.min.js || true
+        ls -la app/src/main/assets/
+        
+    - name: Build
+      run: ./gradlew assembleDebug --stacktrace
+      
+    - name: Upload APK
       uses: actions/upload-artifact@v3
+      if: always()
       with:
         name: orsted-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/
