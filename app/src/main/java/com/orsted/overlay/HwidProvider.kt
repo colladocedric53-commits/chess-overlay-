@@ -16,7 +16,8 @@ object HwidProvider {
         val prime = 1099511628211L
         
         for (byte in bytes) {
-            hash = hash xor (byte.toLong() and 0xFFL)
+            val b = byte.toInt() and 0xFF
+            hash = hash xor b.toLong()
             hash = hash * prime
         }
         
