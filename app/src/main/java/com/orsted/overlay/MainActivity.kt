@@ -87,6 +87,12 @@ class MainActivity : AppCompatActivity() {
         val hwid = HwidProvider.getHwid(this)
         val licenseKey = sharedPrefs.getString("license_key", "") ?: ""
         
+        // Load all scripts
+        val chessJs = try { assets.open("chess.min.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
+        val stockfishJs = try { assets.open("stockfish.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
+        val userScript = try { assets.open("userscript.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
+        
+        // Inject GM shim
         val gmShim = """
             window.GM_getValue = function(key) {
                 return OrstedBridge.GM_getValue(key);
@@ -154,23 +160,19 @@ class MainActivity : AppCompatActivity() {
             window.OrstedLicenseKey = "$licenseKey";
         """.trimIndent()
         
+        // Inject all scripts sequentially
         webView.evaluateJavascript(gmShim) { _ ->
-            loadAssetScript("chess.min.js")
-        }
-    }
-    
-    private fun loadAssetScript(filename: String) {
-        val js = try {
-            assets.open(filename).bufferedReader().use { it.readText() }
-        } catch (e: Exception) {
-            ""
-        }
-        
-        if (js.isNotEmpty()) {
-            webView.evaluateJavascript(js) { _ ->
-                when (filename) {
-                    "chess.min.js" -> loadAssetScript("stockfish.js")
-                    "stockfish.js" -> loadAssetScript("userscript.js")
+            if (chessJs.isNotEmpty()) {
+                webView.evaluateJavascript(chessJs) { _ ->
+                    if (stockfishJs.isNotEmpty()) {
+                        webView.evaluateJavascript(stockfishJs) { _ ->
+                            if (userScript.isNotEmpty()) {
+                                webView.evaluateJavascript(userScript) { _ ->
+                                    // All scripts loaded
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

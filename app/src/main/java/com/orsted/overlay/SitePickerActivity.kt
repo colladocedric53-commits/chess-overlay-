@@ -36,14 +36,16 @@ class SitePickerActivity : AppCompatActivity() {
         findViewById<CardView>(R.id.chessComCard).startAnimation(fadeIn)
         findViewById<CardView>(R.id.lichessCard).startAnimation(fadeIn)
         
-        if (currentSite != null) {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                putExtra("site", currentSite)
-            }
-            startActivity(intent)
-            finish()
-            return
-        }
+        // Always show picker to allow users to switch sites or change desktop mode
+        // Remove auto-redirect behavior
+        // if (currentSite != null) {
+        //     val intent = Intent(this, MainActivity::class.java).apply {
+        //         putExtra("site", currentSite)
+        //     }
+        //     startActivity(intent)
+        //     finish()
+        //     return
+        // }
         
         chessComCard.setOnClickListener {
             saveSelection("chess.com", desktopModeSwitch.isChecked)
