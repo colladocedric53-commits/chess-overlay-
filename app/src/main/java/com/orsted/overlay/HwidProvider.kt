@@ -20,7 +20,7 @@ object HwidProvider {
             hash = ((hash xor b.toLong()) * prime) and 0xFFFFFFFFL
         }
 
-        val hexString = String.format("%08x", hash)
+        val hexString = String.format("%016x", hash)
         return "osd-$hexString"
     }
 }
