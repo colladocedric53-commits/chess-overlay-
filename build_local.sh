@@ -8,7 +8,6 @@ set -e
 echo "=== Orsted Chess Overlay - Local Build ==="
 echo ""
 
-# Check for Java
 echo "Checking Java installation..."
 if ! command -v java &> /dev/null; then
     echo "ERROR: Java is not installed or not in PATH"
@@ -19,7 +18,6 @@ fi
 JAVA_VERSION=$(java -version 2>&1 | head -1 | cut -d'"' -f2)
 echo "Java version: $JAVA_VERSION"
 
-# Check for gradle wrapper
 echo ""
 echo "Checking gradle wrapper..."
 if [ ! -f ./gradlew ]; then
@@ -28,43 +26,24 @@ if [ ! -f ./gradlew ]; then
 fi
 
 chmod +x ./gradlew
-
-# Create assets directory
 mkdir -p app/src/main/assets
 
-# Download chess.min.js
 echo ""
 echo "Downloading chess.min.js..."
-if command -v curl &> /dev/null; then
-    curl -L -o app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js
-elif command -v wget &> /dev/null; then
-    wget -O app/src/main/assets/chess.min.js https://cdn.jsdelivr.net/npm/chess.js@0.10.3/dist/chess.min.js
-else
-    echo "ERROR: Neither curl nor wget found. Please install one of them."
-    exit 1
-fi
+curl --fail --location --retry 3 -o app/src/main/assets/chess.min.js https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js
 
-# Download stockfish.js
 echo "Downloading stockfish.js..."
-if command -v curl &> /dev/null; then
-    curl -L -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js
-else
-    wget -O app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/dist/stockfish.js
-fi
+curl --fail --location --retry 3 -o app/src/main/assets/stockfish.js https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js
 
-# Check if userscript.js exists
 if [ ! -f app/src/main/assets/userscript.js ]; then
     echo ""
-    echo "WARNING: userscript.js not found in app/src/main/assets/"
-    echo "Please add your userscript.js file before building"
+    echo "ERROR: userscript.js not found in app/src/main/assets/"
     exit 1
 fi
 
-# Check if icon exists
 if [ ! -f app/src/main/res/mipmap-xxxhdpi/ic_launcher.png ]; then
     echo ""
-    echo "WARNING: ic_launcher.png not found in app/src/main/res/mipmap-xxxhdpi/"
-    echo "Please add your icon file before building"
+    echo "ERROR: ic_launcher.png not found in app/src/main/res/mipmap-xxxhdpi/"
     exit 1
 fi
 
