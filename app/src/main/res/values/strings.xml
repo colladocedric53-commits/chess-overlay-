@@ -6,4 +6,7 @@
     <string name="mobile_mode">Mobile Mode</string>
     <string name="desktop_mode">Desktop Mode</string>
     <string name="select_site">Select your chess platform</string>
+    <string name="blocked_title">Update Required</string>
+    <string name="blocked_message">A new version of the APK is required. Please update to continue using Orsted.</string>
+    <string name="blocked_exit">Exit</string>
 </resources>

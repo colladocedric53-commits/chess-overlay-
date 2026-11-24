@@ -11,22 +11,28 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 
 class SitePickerActivity : AppCompatActivity() {
     
+    companion object {
+        const val PREFS_NAME = "orsted_prefs"
+        const val KEY_DESKTOP = "desktop_mode"
+        const val KEY_START_URL = "start_url"
+    }
+    
     private lateinit var sharedPrefs: SharedPreferences
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_picker)
         
-        sharedPrefs = getSharedPreferences("orsted_prefs", MODE_PRIVATE)
+        sharedPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         
         val chessComCard = findViewById<CardView>(R.id.chessComCard)
         val lichessCard = findViewById<CardView>(R.id.lichessCard)
         val desktopModeSwitch = findViewById<SwitchMaterial>(R.id.desktopModeSwitch)
         
         val currentSite = sharedPrefs.getString("selected_site", null)
-        val currentMode = sharedPrefs.getString("webview_mode", "mobile")
+        val currentDesktop = sharedPrefs.getBoolean(KEY_DESKTOP, false)
         
-        desktopModeSwitch.isChecked = currentMode == "desktop"
+        desktopModeSwitch.isChecked = currentDesktop
         
         val fadeIn = AlphaAnimation(0f, 1f).apply {
             duration = 500
@@ -56,14 +62,15 @@ class SitePickerActivity : AppCompatActivity() {
         }
         
         desktopModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            sharedPrefs.edit().putString("webview_mode", if (isChecked) "desktop" else "mobile").apply()
+            sharedPrefs.edit().putBoolean(KEY_DESKTOP, isChecked).apply()
         }
     }
     
     private fun saveSelection(site: String, isDesktop: Boolean) {
         sharedPrefs.edit().apply {
             putString("selected_site", site)
-            putString("webview_mode", if (isDesktop) "desktop" else "mobile")
+            putBoolean(KEY_DESKTOP, isDesktop)
+            putString(KEY_START_URL, if (site == "chess.com") "https://www.chess.com" else "https://lichess.org")
             apply()
         }
         

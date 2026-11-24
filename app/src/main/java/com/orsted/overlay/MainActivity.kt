@@ -1,204 +1,110 @@
 package com.orsted.overlay
 
 import android.annotation.SuppressLint
-import android.content.Intent
-import android.content.SharedPreferences
-import android.graphics.Color
 import android.os.Bundle
-import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
-    
-    private lateinit var webView: WebView
-    private lateinit var sharedPrefs: SharedPreferences
-    private lateinit var jsBridge: JsBridge
-    
-    @SuppressLint("SetJavaScriptEnabled", "ViewConstructor")
+
+    lateinit var webView: WebView
+        private set
+    private lateinit var prefs: android.content.SharedPreferences
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        
-        sharedPrefs = getSharedPreferences("orsted_prefs", MODE_PRIVATE)
-        
-        val site = intent.getStringExtra("site") ?: sharedPrefs.getString("selected_site", "chess.com")
-        val webviewMode = sharedPrefs.getString("webview_mode", "mobile")
-        val url = if (site == "chess.com") "https://www.chess.com" else "https://lichess.org"
-        
+
+        prefs = getSharedPreferences(SitePickerActivity.PREFS_NAME, MODE_PRIVATE)
         webView = findViewById(R.id.webView)
-        
-        jsBridge = JsBridge(this) {
-            showUpdateDialog()
-        }
-        
-        configureWebView(webviewMode == "desktop")
-        
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                injectScripts()
-            }
+
+        // READ DESKTOP MODE PREFERENCE
+        val desktop = prefs.getBoolean(SitePickerActivity.KEY_DESKTOP, false)
+
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            allowFileAccess = true
+            allowContentAccess = true
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = true
+            mediaPlaybackRequiresUserGesture = false
             
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                return false
+            // APPLY DESKTOP SETTINGS
+            useWideViewPort = desktop
+            loadWithOverviewMode = desktop
+            userAgentString = if (desktop) DESKTOP_UA else MOBILE_UA
+            
+            cacheMode = WebSettings.LOAD_DEFAULT
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                // INJECT SHIM FIRST, THEN ASSETS
+                injectShim()
+                injectAssetScripts()
             }
         }
-        
-        webView.loadUrl(url)
+        webView.webChromeClient = WebChromeClient()
+        webView.addJavascriptInterface(JsBridge(this), "OrstedBridge")
+
+        webView.loadUrl(
+            prefs.getString(SitePickerActivity.KEY_START_URL, "https://www.chess.com")
+                ?: "https://www.chess.com"
+        )
     }
-    
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun configureWebView(isDesktopMode: Boolean) {
-        val settings = webView.settings
-        
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        settings.javaScriptCanOpenWindowsAutomatically = true
-        settings.setSupportMultipleWindows(true)
-        settings.setGeolocationEnabled(false)
-        settings.allowFileAccess = true
-        settings.allowFileAccessFromFileURLs = true
-        settings.allowUniversalAccessFromFileURLs = true
-        
-        if (isDesktopMode) {
-            settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            settings.useWideViewPort = true
-            settings.loadWithOverviewMode = true
-            settings.builtInZoomControls = true
-            settings.displayZoomControls = false
-        } else {
-            settings.useWideViewPort = false
-            settings.loadWithOverviewMode = false
-            settings.builtInZoomControls = false
-        }
-        
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        webView.setBackgroundColor(Color.BLACK)
-        
-        webView.addJavascriptInterface(jsBridge, "OrstedBridge")
-    }
-    
-    private fun injectScripts() {
-        val hwid = HwidProvider.getHwid(this)
-        val licenseKey = sharedPrefs.getString("license_key", "") ?: ""
-        
-        // Load all scripts
-        val chessJs = try { assets.open("chess.min.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
-        val stockfishJs = try { assets.open("stockfish.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
-        val userScript = try { assets.open("userscript.js").bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
-        
-        // Inject GM shim
-        val gmShim = """
-            window.GM_getValue = function(key) {
-                return OrstedBridge.GM_getValue(key);
-            };
-            window.GM_setValue = function(key, value) {
-                OrstedBridge.GM_setValue(key, value);
-            };
-            window.GM_xmlhttpRequest = function(details) {
-                if (typeof details === 'string') {
-                    details = { url: details };
-                }
-                const xhr = new XMLHttpRequest();
-                const method = details.method || 'GET';
-                const url = details.url;
-                const async = details.async !== false;
-                const user = details.user;
-                const password = details.password;
-                const headers = details.headers || {};
-                const data = details.data || null;
-                const timeout = details.timeout || 0;
-                
-                xhr.open(method, url, async, user, password);
-                
-                for (const headerName in headers) {
-                    xhr.setRequestHeader(headerName, headers[headerName]);
-                }
-                
-                if (timeout > 0) {
-                    xhr.timeout = timeout;
-                    xhr.ontimeout = function() {
-                        if (details.ontimeout) details.ontimeout({});
-                    };
-                }
-                
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        const response = {
-                            status: xhr.status,
-                            statusText: xhr.statusText,
-                            responseText: xhr.responseText,
-                            response: xhr.responseText,
-                            readyState: xhr.readyState,
-                            responseHeaders: xhr.getAllResponseHeaders()
-                        };
-                        
-                        if (xhr.status === 426 && url.includes('/api/validate')) {
-                            OrstedBridge.triggerUpdate();
-                        }
-                        
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            if (details.onload) details.onload(response);
-                        } else {
-                            if (details.onerror) details.onerror(response);
-                        }
-                    }
+
+    private fun injectShim() {
+        val shim = """
+            window.GM_getValue = function(key, def) { return OrstedBridge.gm_getValue(key, def); };
+            window.GM_setValue = function(key, val) { return OrstedBridge.gm_setValue(key, val); };
+            window.GM_xmlhttpRequest = function(opts) {
+                var cbId = 'cb_' + Math.random().toString(36).substr(2, 9);
+                window[cbId] = function(res) {
+                    if (opts.onload && res.status) opts.onload(res);
+                    else if (opts.onerror && res.error) opts.onerror(res);
+                    delete window[cbId]; 
                 };
-                
-                xhr.onerror = function() {
-                    if (details.onerror) details.onerror({ status: 0, statusText: 'Network Error' });
-                };
-                
-                xhr.send(data);
+                OrstedBridge.gm_xmlhttpRequest(JSON.stringify(opts), cbId);
             };
-            window.OrstedHWID = "$hwid";
-            window.OrstedLicenseKey = "$licenseKey";
         """.trimIndent()
-        
-        // Inject all scripts sequentially
-        webView.evaluateJavascript(gmShim) { _ ->
-            if (chessJs.isNotEmpty()) {
-                webView.evaluateJavascript(chessJs) { _ ->
-                    if (stockfishJs.isNotEmpty()) {
-                        webView.evaluateJavascript(stockfishJs) { _ ->
-                            if (userScript.isNotEmpty()) {
-                                webView.evaluateJavascript(userScript) { _ ->
-                                    // All scripts loaded
-                                }
-                            }
-                        }
-                    }
-                }
+        webView.evaluateJavascript(shim, null)
+    }
+
+    private fun injectAssetScripts() {
+        // INJECT CHESS.JS THEN USERSCRIPT
+        val scripts = listOf("chess.min.js", "userscript.js")
+        for (asset in scripts) {
+            try {
+                val code = assets.open(asset).bufferedReader().use { it.readText() }
+                webView.evaluateJavascript(code, null)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
-    
-    private fun showUpdateDialog() {
-        runOnUiThread {
-            AlertDialog.Builder(this)
-                .setTitle("APK Update Required")
-                .setMessage("A new version is required. Please update to continue using Orsted.")
-                .setPositiveButton("Telegram Support") { _, _ ->
-                    val intent = Intent(Intent.ACTION_VIEW)
-                    intent.data = android.net.Uri.parse("https://t.me/orstedph")
-                    startActivity(intent)
-                    finishAffinity()
-                }
-                .setCancelable(false)
-                .show()
+
+    override fun onDestroy() {
+        if (this::webView.isInitialized) {
+            webView.apply {
+                loadUrl("about:blank")
+                clearHistory()
+                (parent as? ViewGroup)?.removeView(this)
+                destroy()
+            }
         }
+        super.onDestroy()
     }
-    
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
+
+    companion object {
+        private const val MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        private const val DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 }
