@@ -23,8 +23,15 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences(SitePickerActivity.PREFS_NAME, MODE_PRIVATE)
         webView = findViewById(R.id.webView)
 
-        // READ DESKTOP MODE PREFERENCE
-        val desktop = prefs.getBoolean(SitePickerActivity.KEY_DESKTOP, false)
+        // Prefer the explicit picker Intent value. Fall back to saved settings
+        // when Android recreates this Activity or it is launched independently.
+        val desktop = intent.getBooleanExtra(
+            SitePickerActivity.KEY_DESKTOP,
+            prefs.getBoolean(SitePickerActivity.KEY_DESKTOP, false)
+        )
+        val startUrl = intent.getStringExtra(SitePickerActivity.KEY_START_URL)
+            ?: prefs.getString(SitePickerActivity.KEY_START_URL, "https://www.chess.com")
+            ?: "https://www.chess.com"
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -35,19 +42,24 @@ class MainActivity : AppCompatActivity() {
             allowFileAccessFromFileURLs = true
             allowUniversalAccessFromFileURLs = true
             mediaPlaybackRequiresUserGesture = false
-            
-            // APPLY DESKTOP SETTINGS
+
+            // Configure the viewport and desktop identity before the first load.
             useWideViewPort = desktop
             loadWithOverviewMode = desktop
             userAgentString = if (desktop) DESKTOP_UA else MOBILE_UA
-            
+
+            // Keep pinch zoom available without showing floating zoom buttons.
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+
             cacheMode = WebSettings.LOAD_DEFAULT
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                // INJECT SHIM FIRST, THEN ASSETS
+                // Preserve the userscript bridge shim and asset injection order.
                 injectShim()
                 injectAssetScripts()
             }
@@ -55,10 +67,7 @@ class MainActivity : AppCompatActivity() {
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(JsBridge(this), "OrstedBridge")
 
-        webView.loadUrl(
-            prefs.getString(SitePickerActivity.KEY_START_URL, "https://www.chess.com")
-                ?: "https://www.chess.com"
-        )
+        webView.loadUrl(startUrl)
     }
 
     private fun injectShim() {
@@ -70,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                 window[cbId] = function(res) {
                     if (opts.onload && res.status) opts.onload(res);
                     else if (opts.onerror && res.error) opts.onerror(res);
-                    delete window[cbId]; 
+                    delete window[cbId];
                 };
                 OrstedBridge.gm_xmlhttpRequest(JSON.stringify(opts), cbId);
             };
