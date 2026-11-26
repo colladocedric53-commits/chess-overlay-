@@ -117,8 +117,45 @@ class MainActivity : AppCompatActivity() {
 
     private fun injectShim() {
         val shim = """
-            window.GM_getValue = function(key, def) { return OrstedBridge.gm_getValue(key, def); };
-            window.GM_setValue = function(key, val) { return OrstedBridge.gm_setValue(key, val); };
+            // GM storage crosses the Android JavascriptInterface as strings.
+            // Serialize values before saving and restore their JS types on read.
+            window.GM_getValue = function(key, def) {
+                var serializedDefault;
+                try {
+                    serializedDefault = JSON.stringify(def);
+                } catch (e) {
+                    serializedDefault = "null";
+                }
+                if (typeof serializedDefault === "undefined") {
+                    serializedDefault = "null";
+                }
+
+                var stored = OrstedBridge.gm_getValue(String(key), serializedDefault);
+                if (stored === null || typeof stored === "undefined") {
+                    return def;
+                }
+
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {
+                    // Preserve values written by older app versions.
+                    return stored;
+                }
+            };
+
+            window.GM_setValue = function(key, val) {
+                var serialized;
+                try {
+                    serialized = JSON.stringify(val);
+                } catch (e) {
+                    serialized = "null";
+                }
+                if (typeof serialized === "undefined") {
+                    serialized = "null";
+                }
+                OrstedBridge.gm_setValue(String(key), serialized);
+            };
+
             window.GM_xmlhttpRequest = function(opts) {
                 var cbId = 'cb_' + Math.random().toString(36).substr(2, 9);
                 window[cbId] = function(res) {
