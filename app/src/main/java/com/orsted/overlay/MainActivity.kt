@@ -70,7 +70,9 @@ class MainActivity : AppCompatActivity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                if (desktop && !startScriptInstalled) view.evaluateJavascript(DESKTOP_SCRIPT, null)
+                if (desktop && !startScriptInstalled) {
+                    view.evaluateJavascript(DESKTOP_SCRIPT, null)
+                }
                 injectShim()
                 injectAssetScripts()
             }
@@ -152,43 +154,61 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        // Only update the viewport meta when its value differs. This prevents
+        // the MutationObserver from repeatedly triggering itself.
         private val DESKTOP_SCRIPT = """
             (function () {
                 if (window.top !== window) return;
-                var content = "width=1100, initial-scale=1, minimum-scale=0.25, maximum-scale=5, user-scalable=yes";
-                function apply() {
-                    var root = document.documentElement;
-                    if (!root) return;
-                    var tags = document.querySelectorAll('meta[name="viewport"]');
+                if (window.__orstedDesktopViewportInstalled) return;
+                window.__orstedDesktopViewportInstalled = true;
+
+                var viewportContent =
+                    "width=1100, initial-scale=1, minimum-scale=0.25, " +
+                    "maximum-scale=5, user-scalable=yes";
+
+                function applyDesktopViewport() {
+                    var head = document.head;
+                    if (!head) return;
+
+                    var tags = head.querySelectorAll('meta[name="viewport"]');
                     if (!tags.length) {
                         var meta = document.createElement("meta");
-                        meta.name = "viewport"; meta.content = content;
-                        (document.head || root).insertBefore(meta, (document.head || root).firstChild);
-                    } else {
-                        for (var i = 0; i < tags.length; i++) tags[i].content = content;
+                        meta.setAttribute("name", "viewport");
+                        meta.setAttribute("content", viewportContent);
+                        head.insertBefore(meta, head.firstChild);
+                        return;
                     }
-                    root.style.minWidth = "1100px";
-                    if (document.body) document.body.style.minWidth = "1100px";
+
+                    for (var i = 0; i < tags.length; i++) {
+                        if (tags[i].getAttribute("content") !== viewportContent) {
+                            tags[i].setAttribute("content", viewportContent);
+                        }
+                    }
                 }
-                function start() {
-                    apply();
-                    if (window.MutationObserver && document.documentElement) {
-                        new MutationObserver(apply).observe(document.documentElement, {
-                            childList: true, subtree: true, attributes: true,
+
+                function startObserver() {
+                    if (!document.head) return false;
+                    applyDesktopViewport();
+
+                    if (window.MutationObserver) {
+                        var observer = new MutationObserver(function () {
+                            applyDesktopViewport();
+                        });
+                        observer.observe(document.head, {
+                            childList: true,
+                            attributes: true,
+                            subtree: false,
                             attributeFilter: ["name", "content"]
                         });
                     }
-                    setTimeout(function () {
-                        try {
-                            if (innerWidth < 800 && sessionStorage.getItem("__orstedDesktopReload") !== "1") {
-                                sessionStorage.setItem("__orstedDesktopReload", "1");
-                                location.reload();
-                            } else if (innerWidth >= 800) sessionStorage.removeItem("__orstedDesktopReload");
-                        } catch (e) {}
-                    }, 500);
+                    return true;
                 }
-                if (document.documentElement) start();
-                else document.addEventListener("DOMContentLoaded", start, { once: true });
+
+                if (!startObserver()) {
+                    document.addEventListener("DOMContentLoaded", function () {
+                        startObserver();
+                    }, { once: true });
+                }
             })();
         """.trimIndent()
     }
