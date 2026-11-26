@@ -15,36 +15,30 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
 class MainActivity : AppCompatActivity() {
-
     lateinit var webView: WebView
         private set
-
     private lateinit var prefs: android.content.SharedPreferences
-    private var desktopMode = false
-    private var documentStartViewportInstalled = false
+    private var desktop = false
+    private var startScriptInstalled = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         prefs = getSharedPreferences(SitePickerActivity.PREFS_NAME, MODE_PRIVATE)
         webView = findViewById(R.id.webView)
 
-        // The picker passes the selected mode directly. Preferences cover
-        // Activity recreation and launches which do not include the extra.
-        desktopMode = intent.getBooleanExtra(
+        desktop = intent.getBooleanExtra(
             SitePickerActivity.KEY_DESKTOP,
             prefs.getBoolean(SitePickerActivity.KEY_DESKTOP, false)
         )
-
-        val startUrl = intent.getStringExtra(SitePickerActivity.KEY_START_URL)
+        val url = intent.getStringExtra(SitePickerActivity.KEY_START_URL)
             ?: prefs.getString(SitePickerActivity.KEY_START_URL, "https://www.chess.com")
             ?: "https://www.chess.com"
 
         val settings = webView.settings
-        val defaultUserAgent = settings.userAgentString
-        val chromeVersion = extractChromeVersion(defaultUserAgent)
+        val defaultUa = settings.userAgentString
+        val version = Regex("Chrome/([0-9.]+)").find(defaultUa)?.groupValues?.get(1) ?: "120.0.0.0"
 
         settings.apply {
             javaScriptEnabled = true
@@ -55,136 +49,69 @@ class MainActivity : AppCompatActivity() {
             allowFileAccessFromFileURLs = true
             allowUniversalAccessFromFileURLs = true
             mediaPlaybackRequiresUserGesture = false
-
-            // Desktop websites need a wide CSS viewport as well as a desktop UA.
-            useWideViewPort = desktopMode
-            loadWithOverviewMode = desktopMode
+            useWideViewPort = desktop
+            loadWithOverviewMode = desktop
             setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
             textZoom = 100
-
-            // Use the installed WebView's actual Chromium version. This avoids
-            // sending an old hard-coded Chrome version to modern chess sites.
-            userAgentString = if (desktopMode) {
-                buildDesktopUserAgent(chromeVersion)
-            } else {
-                defaultUserAgent
-            }
-
-            cacheMode = if (desktopMode) {
-                WebSettings.LOAD_NO_CACHE
-            } else {
-                WebSettings.LOAD_DEFAULT
-            }
+            userAgentString = if (desktop) {
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$version Safari/537.36"
+            } else defaultUa
+            cacheMode = if (desktop) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
 
-        if (desktopMode) {
+        if (desktop) {
             webView.clearCache(true)
-            configureDesktopUserAgentHints(settings, chromeVersion)
-            installDesktopViewportOverride()
+            setDesktopHints(settings)
+            installDesktopScript()
         }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                // Older WebView releases lack document-start injection. Apply
-                // the same viewport override after load as a compatibility path.
-                if (desktopMode && !documentStartViewportInstalled) {
-                    view.evaluateJavascript(DESKTOP_VIEWPORT_SCRIPT, null)
+                if (desktop && !startScriptInstalled) {
+                    view.evaluateJavascript(DESKTOP_SCRIPT, null)
                 }
-
-                // Keep the existing GM_ shim and userscript load order unchanged.
                 injectShim()
                 injectAssetScripts()
             }
         }
-
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(JsBridge(this), "OrstedBridge")
-
-        // All WebView settings and desktop overrides are in place before this.
-        webView.loadUrl(startUrl)
+        webView.loadUrl(url)
     }
 
-    private fun extractChromeVersion(userAgent: String): String {
-        val match = Regex("Chrome/([0-9.]+)").find(userAgent)
-        return match?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
-            ?: "120.0.0.0"
-    }
-
-    private fun buildDesktopUserAgent(chromeVersion: String): String {
-        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) " +
-            "Chrome/$chromeVersion Safari/537.36"
-    }
-
-    private fun configureDesktopUserAgentHints(
-        settings: WebSettings,
-        chromeVersion: String
-    ) {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) {
-            Log.w(TAG, "This WebView does not support custom User-Agent Client Hints")
-            return
-        }
-
+    private fun setDesktopHints(settings: WebSettings) {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) return
         try {
-            val majorVersion = chromeVersion.substringBefore(".")
-            val brands = listOf(
-                UserAgentMetadata.BrandVersion.Builder()
-                    .setBrand("Chromium")
-                    .setMajorVersion(majorVersion)
-                    .setFullVersion(chromeVersion)
-                    .build(),
-                UserAgentMetadata.BrandVersion.Builder()
-                    .setBrand("Google Chrome")
-                    .setMajorVersion(majorVersion)
-                    .setFullVersion(chromeVersion)
-                    .build(),
-                UserAgentMetadata.BrandVersion.Builder()
-                    .setBrand("Not_A Brand")
-                    .setMajorVersion("99")
-                    .setFullVersion("99.0.0.0")
+            WebSettingsCompat.setUserAgentMetadata(
+                settings,
+                UserAgentMetadata.Builder()
+                    .setMobile(false)
+                    .setPlatform("Windows")
+                    .setPlatformVersion("10.0.0")
+                    .setArchitecture("x86")
+                    .setBitness(64)
+                    .setModel("")
                     .build()
             )
-
-            val metadata = UserAgentMetadata.Builder()
-                .setBrandVersionList(brands)
-                .setMobile(false)
-                .setPlatform("Windows")
-                .setPlatformVersion("10.0.0")
-                .setArchitecture("x86")
-                .setBitness(64)
-                .setModel("")
-                .build()
-
-            WebSettingsCompat.setUserAgentMetadata(settings, metadata)
-        } catch (error: Exception) {
-            Log.w(TAG, "Unable to set desktop User-Agent Client Hints", error)
+        } catch (e: Exception) {
+            Log.w("OrstedWebView", "Desktop UA hints unavailable", e)
         }
     }
 
-    private fun installDesktopViewportOverride() {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            Log.w(TAG, "Document-start script unavailable. Using page-finish fallback.")
-            return
-        }
-
+    private fun installDesktopScript() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
         try {
             WebViewCompat.addDocumentStartJavaScript(
-                webView,
-                DESKTOP_VIEWPORT_SCRIPT,
-                setOf(
-                    "https://chess.com",
-                    "https://*.chess.com",
-                    "https://lichess.org",
-                    "https://*.lichess.org"
-                )
+                webView, DESKTOP_SCRIPT,
+                setOf("https://chess.com", "https://*.chess.com",
+                    "https://lichess.org", "https://*.lichess.org")
             )
-            documentStartViewportInstalled = true
-        } catch (error: Exception) {
-            documentStartViewportInstalled = false
-            Log.w(TAG, "Unable to install desktop viewport script", error)
+            startScriptInstalled = true
+        } catch (e: Exception) {
+            Log.w("OrstedWebView", "Document-start script unavailable", e)
         }
     }
 
@@ -206,115 +133,81 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun injectAssetScripts() {
-        val scripts = listOf("chess.min.js", "userscript.js")
-        for (asset in scripts) {
+        for (asset in listOf("chess.min.js", "userscript.js")) {
             try {
-                val code = assets.open(asset).bufferedReader().use { it.readText() }
-                webView.evaluateJavascript(code, null)
-            } catch (error: Exception) {
-                Log.e(TAG, "Failed to inject $asset", error)
+                val script = assets.open(asset).bufferedReader().use { it.readText() }
+                webView.evaluateJavascript(script, null)
+            } catch (e: Exception) {
+                Log.e("OrstedWebView", "Failed to inject $asset", e)
             }
         }
     }
 
     override fun onDestroy() {
-        if (this::webView.isInitialized) {
-            webView.apply {
-                loadUrl("about:blank")
-                clearHistory()
-                (parent as? ViewGroup)?.removeView(this)
-                destroy()
-            }
+        if (this::webView.isInitialized) webView.apply {
+            loadUrl("about:blank")
+            clearHistory()
+            (parent as? ViewGroup)?.removeView(this)
+            destroy()
         }
         super.onDestroy()
     }
 
     companion object {
-        private const val TAG = "OrstedWebView"
-
-        // Run before site JavaScript so responsive frameworks see a desktop
-        // layout viewport from their first render. Keep watching because some
-        // single-page apps rewrite their viewport tag after navigation.
-        private val DESKTOP_VIEWPORT_SCRIPT = """
+        // Only update the viewport meta when its value differs. This prevents
+        // the MutationObserver from repeatedly triggering itself.
+        private val DESKTOP_SCRIPT = """
             (function () {
                 if (window.top !== window) return;
+                if (window.__orstedDesktopViewportInstalled) return;
+                window.__orstedDesktopViewportInstalled = true;
 
-                var desktopWidth = "1100";
                 var viewportContent =
                     "width=1100, initial-scale=1, minimum-scale=0.25, " +
                     "maximum-scale=5, user-scalable=yes";
 
-                function forceDesktopViewport() {
-                    var root = document.documentElement;
-                    if (!root) return;
+                function applyDesktopViewport() {
+                    var head = document.head;
+                    if (!head) return;
 
-                    var metas = document.getElementsByTagName("meta");
-                    var found = false;
-
-                    for (var i = 0; i < metas.length; i++) {
-                        var name = metas[i].getAttribute("name");
-                        if (name && name.toLowerCase() === "viewport") {
-                            found = true;
-                            if (metas[i].getAttribute("content") !== viewportContent) {
-                                metas[i].setAttribute("content", viewportContent);
-                            }
-                        }
-                    }
-
-                    if (!found) {
+                    var tags = head.querySelectorAll('meta[name="viewport"]');
+                    if (!tags.length) {
                         var meta = document.createElement("meta");
                         meta.setAttribute("name", "viewport");
                         meta.setAttribute("content", viewportContent);
-                        var parent = document.head || root;
-                        parent.insertBefore(meta, parent.firstChild);
+                        head.insertBefore(meta, head.firstChild);
+                        return;
                     }
 
-                    if (root.style.minWidth !== desktopWidth + "px") {
-                        root.style.minWidth = desktopWidth + "px";
-                    }
-                    if (document.body &&
-                        document.body.style.minWidth !== desktopWidth + "px") {
-                        document.body.style.minWidth = desktopWidth + "px";
+                    for (var i = 0; i < tags.length; i++) {
+                        if (tags[i].getAttribute("content") !== viewportContent) {
+                            tags[i].setAttribute("content", viewportContent);
+                        }
                     }
                 }
 
-                function install() {
-                    forceDesktopViewport();
+                function startObserver() {
+                    if (!document.head) return false;
+                    applyDesktopViewport();
 
-                    if (window.MutationObserver && document.documentElement) {
+                    if (window.MutationObserver) {
                         var observer = new MutationObserver(function () {
-                            forceDesktopViewport();
+                            applyDesktopViewport();
                         });
-                        observer.observe(document.documentElement, {
+                        observer.observe(document.head, {
                             childList: true,
-                            subtree: true,
                             attributes: true,
+                            subtree: false,
                             attributeFilter: ["name", "content"]
                         });
                     }
-
-                    // If this WebView ignores a late viewport change, allow one
-                    // reload after the viewport has been rewritten.
-                    window.setTimeout(function () {
-                        var width = window.innerWidth || 0;
-                        try {
-                            if (width < 800) {
-                                if (window.sessionStorage.getItem("__orstedDesktopReload") !== "1") {
-                                    window.sessionStorage.setItem("__orstedDesktopReload", "1");
-                                    window.location.reload();
-                                }
-                            } else {
-                                window.sessionStorage.removeItem("__orstedDesktopReload");
-                            }
-                        } catch (ignored) {
-                        }
-                    }, 500);
+                    return true;
                 }
 
-                if (document.documentElement) {
-                    install();
-                } else {
-                    document.addEventListener("DOMContentLoaded", install, { once: true });
+                if (!startObserver()) {
+                    document.addEventListener("DOMContentLoaded", function () {
+                        startObserver();
+                    }, { once: true });
                 }
             })();
         """.trimIndent()
